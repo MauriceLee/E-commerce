@@ -1,5 +1,6 @@
 <template>
   <div id="products">
+    <loading :active.sync="status.isLoading" />
     <div class="text-right mt-4">
       <button
         class='btn btn-primary'
@@ -12,10 +13,11 @@
         <tr>
           <th width="120">分類</th>
           <th>產品名稱</th>
-          <th width="120">原價</th>
-          <th width="120">售價</th>
-          <th width="120">是否啟用</th>
-          <th width="120">編輯</th>
+          <th width="100">原價</th>
+          <th width="100">售價</th>
+          <th width="100">是否啟用</th>
+          <th width="70">編輯</th>
+          <th width="70">刪除</th>
         </tr>
       </thead>
       <tbody>
@@ -25,8 +27,8 @@
         >
           <td>{{ item.category }}</td>
           <td>{{ item.title }}</td>
-          <td class="text-right">{{ item.origin_price }}</td>
-          <td class="text-right">{{ item.price }}</td>
+          <td>{{ item.origin_price | currency }}</td>
+          <td>{{ item.price | currency }}</td>
           <td>
             <span
               v-if="item.is_enabled"
@@ -34,21 +36,26 @@
             >啟用</span>
             <span v-else>未啟用</span>
           </td>
-          <td class="btn-group">
+          <td>
             <button
               class="btn btn-outline-primary btn-sm"
               @click="openModal(false, false, item)"
             >編輯</button>
+          </td>
+          <td>
             <button
               class="btn btn-outline-danger btn-sm"
-              @click="openModal(true)"
+              @click="openModal(true, false, item)"
             >刪除</button>
           </td>
         </tr>
       </tbody>
     </table>
 
-    <!-- Modal -->
+    <!-- pagination -->
+    <Pagination :pagination="pagination" />
+
+    <!-- New & Edit Modal -->
     <div
       class="modal fade"
       id="productModal"
@@ -93,13 +100,17 @@
                 </div>
                 <div class="form-group">
                   <label for="customFile">或 上傳圖片
-                    <i class="fas fa-spinner fa-spin"></i>
+                    <i
+                      class="fas fa-spinner fa-spin"
+                      v-if="status.fileUploading"
+                    ></i>
                   </label>
                   <input
                     type="file"
                     id="customFile"
                     class="form-control"
                     ref="files"
+                    @change="uploadFile"
                   >
                 </div>
                 <img
@@ -224,6 +235,8 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Modal -->
     <div
       class="modal fade"
       id="delProductModal"
@@ -277,60 +290,99 @@
 
 <script>
   import $ from "jquery";
+  import Pagination from "@/components/Pagination";
 
   export default {
+    components: {
+      Pagination
+    },
     data: () => ({
       products: [],
       tempProduct: {},
-      isNew: false,
-      isdelete: false
+      pagination: {},
+      status: {
+        isNew: false,
+        isdelete: false,
+        isLoading: false,
+        fileUploading: false
+      }
     }),
     methods: {
-      getProducts() {
-        const api = `${process.env.APIPATH}/api/${process.env.CUSTOMPATH}/products`;
+      getProducts(page = 1) {
         const vm = this;
+        vm.status.isLoading = true;
+        const api = `${process.env.APIPATH}/api/${process.env.CUSTOMPATH}/products?page=${page}`;
         this.$http.get(api).then(res => {
+          // console.log(res.data)
           vm.products = res.data.products;
+          vm.pagination = res.data.pagination;
+          vm.status.isLoading = false;
         });
       },
       openModal(deleteProduct, isNewOutside, item) {
         if (deleteProduct) {
+          this.status.isdelete = true;
+          this.tempProduct = Object.assign({}, item);
           $("#delProductModal").modal("show");
-          this.isdelete = true;
         } else {
           if (isNewOutside) {
+            this.status.isNew = true;
             this.tempProduct = {};
-            this.isNew = true;
           } else {
+            this.status.isNew = false;
             this.tempProduct = Object.assign({}, item);
-            this.isNew = false;
           }
-          this.isdelete = false;
+          this.status.isdelete = false;
           $("#productModal").modal("show");
         }
       },
       updateProduct() {
+        const vm = this;
         let api = `${process.env.APIPATH}/api/${process.env.CUSTOMPATH}/admin/product`;
         let httpMethod = "post";
-        const vm = this;
-        if (!vm.isNew) {
-          api = `${process.env.APIPATH}/api/${process.env.CUSTOMPATH}/admin/product/${vm.tempProduct.id}`;
-          httpMethod = "put";
-        } else if (vm.isdelete) {
+        if (vm.status.isdelete) {
           api = `${process.env.APIPATH}/api/${process.env.CUSTOMPATH}/admin/product/${vm.tempProduct.id}`;
           httpMethod = "delete";
+        } else if (!vm.status.isNew) {
+          api = `${process.env.APIPATH}/api/${process.env.CUSTOMPATH}/admin/product/${vm.tempProduct.id}`;
+          httpMethod = "put";
         }
         this.$http[httpMethod](api, { data: vm.tempProduct }).then(res => {
+          // console.log(res.data)
           if (res.data.success) {
-            $("#productModal").modal("hide");
-            $("#delProductModal").modal("hide");
             vm.getProducts();
           } else {
-            $("#productModal").modal("hide");
-            $("#delProductModal").modal("hide");
             console.log("更新失敗");
           }
+          $("#productModal").modal("hide");
+          $("#delProductModal").modal("hide");
         });
+      },
+      uploadFile() {
+        const vm = this;
+        vm.status.fileUploading = true;
+        const uploadedFile = this.$refs.files.files[0];
+        const formData = new FormData();
+        formData.append("file-to-upload", uploadedFile);
+        const url = `${process.env.APIPATH}/api/${process.env.CUSTOMPATH}/admin/upload`;
+        this.$http
+          .post(url, formData, {
+            headers: {
+              "Content-Type": "multipart/form-data"
+            }
+          })
+          .then(res => {
+            // console.log(res.data);
+            if (res.data.success) {
+              // vm.tempProduct.imageUrl = res.data.imageUrl;
+              // console.log(vm.tempProduct);
+              // 要用set的方式強制寫入，才會雙向綁定
+              vm.$set(vm.tempProduct, "imageUrl", res.data.imageUrl);
+            } else {
+              this.$bus.$emit("message:push", res.data.message, "danger");
+            }
+            vm.status.fileUploading = false;
+          });
       }
     },
     created() {

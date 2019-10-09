@@ -16,9 +16,11 @@
     "popper.js": "^1.15.0",
     "vue": "^2.5.2",
     "vue-axios": "^2.1.5",
+    "vue-loading-overlay": "^3.2.0",
     "vue-router": "^3.0.1"
   },
   "devDependencies": {
+    "@fortawesome/fontawesome-free": "^5.11.2",
     "autoprefixer": "^7.1.2",
     "babel-core": "^6.22.1",
     "babel-helper-vue-jsx-merge-props": "^2.0.3",
