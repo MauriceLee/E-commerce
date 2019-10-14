@@ -16,9 +16,27 @@
           <a
             class="nav-link"
             href="#"
+            @click.prevent="signout"
           >Sign out</a>
         </li>
       </ul>
     </nav>
   </div>
 </template>
+
+<script>
+  export default {
+    methods: {
+      signout() {
+        const vm = this;
+        const url = `${process.env.APIPATH}/logout`;
+        this.$http.post(url).then(res => {
+          console.log(res.data);
+          if (res.data.success) {
+            vm.$router.push("/signin");
+          }
+        });
+      }
+    }
+  };
+</script>
